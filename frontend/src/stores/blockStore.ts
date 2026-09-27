@@ -1,5 +1,6 @@
 import { derived, writable } from 'svelte/store'
 import type { Block } from '../types/block'
+import { carverStore } from './carverStore'
 import { db } from '../utils/db'
 
 const blockList = writable<Block[]>([])
@@ -50,7 +51,10 @@ async function reorder(ordered: Array<Pick<Block, 'id' | 'colorNo'>>): Promise<v
 }
 
 async function removeByDraft(draftId: string): Promise<void> {
+  const removedIds = (await db.blocks.where('draftId').equals(draftId).primaryKeys()) as string[]
   await db.blocks.where('draftId').equals(draftId).delete()
+  // 版片一撤下，刻工名下的名额当场腾出
+  await carverStore.releaseBlocks(removedIds)
   await load()
 }
 

@@ -5,6 +5,7 @@
   import { blockStore } from '../stores/blockStore'
   import { carverStore } from '../stores/carverStore'
   import { useCarverLoad } from '../hooks/useCarverLoad'
+  import { carverSlot } from '../utils/capacity'
   import type { CarverSpecialty, SkillLevel } from '../types/carver'
   import { downloadJson } from '../utils/export'
   import { db } from '../utils/db'
@@ -26,6 +27,7 @@
     $carverStore.filter((carver) => filter === '全部' || carver.specialty === filter),
   )
   const selectedCarver = $derived($carverStore.find((carver) => carver.id === selectedCarverId) ?? null)
+  const selectedSlot = $derived(selectedCarver ? carverSlot(selectedCarver, $blockStore) : null)
   const selectedBlocks = $derived(
     selectedCarver
       ? [...$blockStore].filter((block) => selectedCarver.activeBlockIds.includes(block.id) || block.carvedBy === selectedCarver.name)
@@ -171,8 +173,10 @@
   <div class="carver-layout">
     <section class="card-grid carver-grid">
       {#each filteredCarvers as carver (carver.id)}
+        {@const slot = carverSlot(carver, $blockStore)}
         <button
           class:active={selectedCarverId === carver.id}
+          class:full={slot.full}
           class="carver-card"
           data-testid="row-carver"
           type="button"
@@ -184,9 +188,14 @@
               <h2>{carver.name}</h2>
               <p>{carver.skillLevel} · {carver.specialty}</p>
             </div>
+            {#if slot.full}<span class="tag full-tag">在刻已满</span>{/if}
           </div>
           <div class="carver-metrics">
-            <div><span>在刻</span><strong>{carver.activeBlockIds.length}</strong><small>块</small></div>
+            <div>
+              <span>在刻 / 上限</span>
+              <strong>{slot.active} / {slot.capacity}</strong>
+              <small>块{slot.full ? ' · 已到顶' : ''}</small>
+            </div>
             <div><span>专长</span><strong>{carver.specialty}</strong></div>
           </div>
           <p class="piece-note">{carver.pieceworkNote}</p>
@@ -202,10 +211,13 @@
             <span class="section-kicker">当班分布</span>
             <h2>{selectedCarver.name}的版片</h2>
           </div>
-          <span class="tag">{selectedCarver.skillLevel}</span>
+          <div class="heading-tags">
+            {#if selectedSlot?.full}<span class="tag full-tag">在刻已满</span>{/if}
+            <span class="tag">{selectedCarver.skillLevel}</span>
+          </div>
         </div>
         <div class="load-pair">
-          <div><span>在刻版片</span><strong>{$selectedActiveCount}</strong></div>
+          <div><span>在刻版片 / 上限</span><strong>{$selectedActiveCount} / {selectedSlot?.capacity ?? 0}</strong></div>
           <div><span>节点平均耗时</span><strong>{$selectedAverageDuration}<small> 分钟</small></strong></div>
         </div>
         <StageRail activeIndex={stage.active} completedCount={stage.completed} compact={true} />

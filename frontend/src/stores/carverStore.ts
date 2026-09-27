@@ -63,17 +63,23 @@ async function assignBlock(block: Block, carverId: string): Promise<void> {
   await load()
 }
 
-async function releaseBlock(blockId: string): Promise<void> {
+async function releaseBlocks(blockIds: string[]): Promise<void> {
+  const removed = new Set(blockIds)
+  if (removed.size === 0) return
   const allCarvers = await db.carvers.toArray()
   await db.transaction('rw', db.carvers, async () => {
     for (const carver of allCarvers) {
-      if (!carver.activeBlockIds.includes(blockId)) continue
+      if (!carver.activeBlockIds.some((id) => removed.has(id))) continue
       await db.carvers.update(carver.id, {
-        activeBlockIds: carver.activeBlockIds.filter((id) => id !== blockId),
+        activeBlockIds: carver.activeBlockIds.filter((id) => !removed.has(id)),
       })
     }
   })
   await load()
+}
+
+async function releaseBlock(blockId: string): Promise<void> {
+  await releaseBlocks([blockId])
 }
 
 export const carverStore = {
@@ -85,4 +91,5 @@ export const carverStore = {
   update,
   assignBlock,
   releaseBlock,
+  releaseBlocks,
 }

@@ -11,6 +11,7 @@
   import { draftStore } from '../stores/draftStore'
   import { useBlockOrder } from '../hooks/useBlockOrder'
   import { useCarverLoad } from '../hooks/useCarverLoad'
+  import { carverCapacity, carverSlot } from '../utils/capacity'
   import { validateColorSequence } from '../utils/seq'
   import { db } from '../utils/db'
   import type { Block } from '../types/block'
@@ -32,6 +33,9 @@
   let lastSync = $state('刚刚')
 
   const draft = $derived($draftStore.find((item) => item.id === draftId) ?? null)
+  const selectedCarver = $derived($carverStore.find((carver) => carver.id === selectedCarverId) ?? null)
+  const selectedCapacity = $derived(selectedCarver ? carverCapacity(selectedCarver.skillLevel) : 0)
+  const selectedFull = $derived(selectedCarver !== null && $selectedActiveCount >= selectedCapacity)
 
   onMount(() => {
     void Promise.all([draftStore.load(), blockStore.load(), carverStore.load()])
@@ -65,12 +69,41 @@
     return $orderedBlocks.filter((block) => block.id !== exceptId).map((block) => block.colorNo)
   }
 
-  async function assignCarver(block: Block, carverName: string): Promise<void> {
+  async function assignCarver(block: Block, select: HTMLSelectElement): Promise<void> {
+    const carverName = select.value
+    if (!carverName) {
+      // 撤下指派：名额当场腾出，版片回到待指派
+      await carverStore.releaseBlock(block.id)
+      await blockStore.update(block.id, {
+        carvedBy: '',
+        state: block.state === '在刻' ? '待刻' : block.state,
+      })
+      notice = ''
+      lastSync = `${block.blockName}已撤下，名额已腾出`
+      return
+    }
+
     const carver = $carverStore.find((item) => item.name === carverName)
-    if (!carver) return
+    if (!carver) {
+      select.value = block.carvedBy
+      return
+    }
+
+    // 派版把关：在刻数到顶就先别派，版片的刻工与状态照旧不动
+    const needsSlot = block.state === '待刻' || block.state === '在刻'
+    const alreadyHis = carver.activeBlockIds.includes(block.id)
+    const slot = carverSlot(carver, get(blockStore))
+    if (needsSlot && !alreadyHis && slot.full) {
+      notice = `${carver.name}（${carver.skillLevel}）手上在刻 ${slot.active} 块已到顶（上限 ${slot.capacity} 块），还有 ${slot.active} 块没交，${block.blockName}先别派给他。`
+      lastSync = '派版未动：刻工在刻已到顶'
+      select.value = block.carvedBy
+      return
+    }
+
     await carverStore.assignBlock(block, carver.id)
     await blockStore.load()
-    lastSync = `已把${block.blockName}指派给刻工`
+    notice = ''
+    lastSync = `已把${block.blockName}指派给${carver.name}`
   }
 
   async function markCarved(block: Block): Promise<void> {
@@ -228,11 +261,14 @@
                     <select
                       data-testid={`field-carvedBy-${block.id}`}
                       value={block.carvedBy}
-                      onchange={(event) => assignCarver(block, (event.currentTarget as HTMLSelectElement).value)}
+                      onchange={(event) => assignCarver(block, event.currentTarget as HTMLSelectElement)}
                     >
                       <option value="">待指派</option>
                       {#each $carverStore as carver}
-                        <option value={carver.name}>{carver.name} · {carver.specialty}</option>
+                        {@const slot = carverSlot(carver, $blockStore)}
+                        <option value={carver.name}>
+                          {carver.name} · {carver.specialty} · 在刻 {slot.active}/{slot.capacity}{slot.full ? '（已满）' : ''}
+                        </option>
                       {/each}
                     </select>
                   </td>
@@ -283,9 +319,9 @@
         </select>
       </label>
       <div class="load-card">
-        <span>当前在刻</span>
-        <strong>{$selectedActiveCount}</strong>
-        <small>版片</small>
+        <span>当前在刻 / 上限</span>
+        <strong>{$selectedActiveCount} / {selectedCapacity}</strong>
+        <small>版片{#if selectedFull} · 已满{/if}</small>
       </div>
       <div class="load-card muted">
         <span>节点平均耗时</span>
