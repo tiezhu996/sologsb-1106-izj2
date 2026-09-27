@@ -934,6 +934,20 @@ textarea:focus {
   box-shadow: 0 0 0 3px rgba(169, 52, 39, 0.08), var(--shadow);
 }
 
+.carver-card.full {
+  border-color: rgba(169, 52, 39, 0.6);
+  background:
+    radial-gradient(circle at 100% 0, rgba(169, 52, 39, 0.09), transparent 11rem),
+    rgba(255, 250, 240, 0.95);
+}
+
+.capacity-full {
+  margin-left: auto;
+  align-self: flex-start;
+  color: #fff;
+  background: var(--cinnabar);
+}
+
 .carver-head {
   display: flex;
   align-items: center;

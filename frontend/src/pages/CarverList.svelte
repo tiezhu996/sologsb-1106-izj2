@@ -5,6 +5,7 @@
   import { blockStore } from '../stores/blockStore'
   import { carverStore } from '../stores/carverStore'
   import { useCarverLoad } from '../hooks/useCarverLoad'
+  import { carverCapacity, isCarverFull } from '../utils/capacity'
   import type { CarverSpecialty, SkillLevel } from '../types/carver'
   import { downloadJson } from '../utils/export'
   import { db } from '../utils/db'
@@ -171,8 +172,12 @@
   <div class="carver-layout">
     <section class="card-grid carver-grid">
       {#each filteredCarvers as carver (carver.id)}
+        {@const activeCount = carver.activeBlockIds.length}
+        {@const capacity = carverCapacity(carver.skillLevel)}
+        {@const full = isCarverFull(carver.skillLevel, activeCount)}
         <button
           class:active={selectedCarverId === carver.id}
+          class:full
           class="carver-card"
           data-testid="row-carver"
           type="button"
@@ -184,9 +189,10 @@
               <h2>{carver.name}</h2>
               <p>{carver.skillLevel} · {carver.specialty}</p>
             </div>
+            {#if full}<span class="tag capacity-full">已满</span>{/if}
           </div>
           <div class="carver-metrics">
-            <div><span>在刻</span><strong>{carver.activeBlockIds.length}</strong><small>块</small></div>
+            <div><span>在刻 / 上限</span><strong>{activeCount} / {capacity}</strong><small>块</small></div>
             <div><span>专长</span><strong>{carver.specialty}</strong></div>
           </div>
           <p class="piece-note">{carver.pieceworkNote}</p>
